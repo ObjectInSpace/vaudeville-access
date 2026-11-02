@@ -90,6 +90,10 @@ selection, which is a good base. Problems found so far:
   records from the microphone, every Ctrl press in a conversation may record and send a question. In one test
   session the game heard "you" and sent it to the character without the player meaning to ask anything. Consider
   another key, or a setting to change it.
+- **Accusation room.** The suspects are 3D objects chosen with the mouse (`AccusationCharacter`, raycast), with no
+  uGUI Selectable, so keyboard and screen reader users have nothing to move to. Each suspect needs a node labelled
+  with `CharacterName` whose `invoked` calls `activatePrimary`. If keyboard selection is added, keep it in step with
+  the node focus, as for the rest of the UI.
 - **Text that changes in place.** The AI loading overlay (`OffWorldInit`), `MessageLabel`, the unlock popup
   (`UnlockUI`) and `MessageUI` appear or change without any focus change. Announce them with `SendAnnouncement`
   when they appear.

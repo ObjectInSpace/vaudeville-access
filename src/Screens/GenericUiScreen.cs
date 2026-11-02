@@ -74,6 +74,7 @@ namespace VaudevilleAccess.Screens
                 }
                 _textReview.Tick(HotKeys.GameHasFocus());
                 FollowGameSelection();
+                FollowSuspectSelection();
             }
             catch (Exception e)
             {
@@ -90,6 +91,7 @@ namespace VaudevilleAccess.Screens
             public string Label = "";
             public string Value = "";
             public Func<string>? ReadValue;
+            public int WorldId = -1;
         }
 
         private sealed class Candidate
@@ -101,6 +103,9 @@ namespace VaudevilleAccess.Screens
             public Rect Frame;
             public List<TMP_Text> ValueTexts = new();
             public bool Disabled;
+            // Clickable 3D objects with no uGUI control: how to activate them, and the game's id for them.
+            public Action? Activate;
+            public int WorldId = -1;
         }
 
         private void Scan()
@@ -214,6 +219,24 @@ namespace VaudevilleAccess.Screens
                 });
             }
 
+            // Accusation room suspects: 3D objects a sighted player clicks, with no uGUI Selectable. Only the name is
+            // read; the component also says who the culprit is, which must never reach the player.
+            foreach (var suspect in UnityEngine.Object.FindObjectsByType<Il2Cpp.AccusationCharacter>(FindObjectsSortMode.None))
+            {
+                if (suspect == null || !suspect.isActiveAndEnabled) continue;
+                string name = Clean(suspect.CharacterName);
+                var target = suspect;
+                list.Add(new Candidate
+                {
+                    Go = suspect.gameObject,
+                    Label = name.Length > 0 ? name : Humanize(suspect.gameObject.name),
+                    Role = AccessibilityRole.Button,
+                    Frame = WorldFrame(suspect.gameObject),
+                    Activate = () => target.activatePrimary(),
+                    WorldId = suspect.id,
+                });
+            }
+
             foreach (var text in UnityEngine.Object.FindObjectsByType<TMP_Text>(FindObjectsSortMode.None))
             {
                 if (text == null || !text.isActiveAndEnabled || labelTexts.Contains(text.GetInstanceID())) continue;
@@ -306,6 +329,17 @@ namespace VaudevilleAccess.Screens
                 value: entry.Value.Length > 0 ? entry.Value : null,
                 state: c.Disabled ? AccessibilityState.Disabled : StateOf(c.Go));
             if (c.Control != null) Wire(screen, entry, role);
+            if (c.Activate != null)
+            {
+                var activate = c.Activate;
+                screen.OnInvoked(entry.Node, () =>
+                {
+                    MelonLogger.Msg($"[GenericUi] Activated '{entry.Label}'.");
+                    activate();
+                    return true;
+                });
+            }
+            entry.WorldId = c.WorldId;
             _byObject[c.Go.GetInstanceID()] = entry;
             _ordered.Add(entry);
             _byNode[entry.Node.Pointer] = entry;
@@ -428,6 +462,25 @@ namespace VaudevilleAccess.Screens
             es.SetSelectedGameObject(target.Go);
             _host.Focus(target.Node);
             _log.Msg($"[GenericUi] Selection moved to hidden '{selected.name}'; redirected to '{target.Label}'.");
+        }
+
+        // The accusation room keeps its own suspect selection (controllerSelectedCharacter) instead of uGUI selection.
+        // When the game moves it, screen reader focus follows, as it does for uGUI selection.
+        private int _lastSuspect = int.MinValue;
+
+        private void FollowSuspectSelection()
+        {
+            var accusation = UnityEngine.Object.FindFirstObjectByType<Il2Cpp.Accusation>();
+            if (accusation == null) { _lastSuspect = int.MinValue; return; }
+            int selected = accusation.controllerSelectedCharacter;
+            if (selected == _lastSuspect) return;
+            _lastSuspect = selected;
+            foreach (var entry in _ordered)
+            {
+                if (entry.WorldId != selected || entry.WorldId < 0) continue;
+                _host.Focus(entry.Node);
+                return;
+            }
         }
 
         private static AccessibilityRole RoleOf(GameObject go)
