@@ -13,7 +13,7 @@ system's accessibility API (UI Automation on Windows), which NVDA, JAWS and Narr
 use it, and its build stripped the public API for creating one. The mod builds the hierarchy by hand from the parts
 the engine still calls, then describes each game screen through it.
 
-The mod also turns vsync off and caps the frame rate at 120 fps. Unity answers screen reader requests once per
+The mod also turns vsync off. Unity answers screen reader requests once per
 frame, and with vsync on an idle or switched-off display can hold the game near 13 fps, which makes every
 announcement take seconds.
 
@@ -39,8 +39,7 @@ The build copies `VaudevilleAccess.dll` into the game's `Mods` folder. Override 
 
 In `UserData\MelonPreferences.cfg`, category `VaudevilleAccess`:
 
-- `UnlockFrameRate` (default true): turn vsync off and cap the frame rate.
-- `TargetFrameRate` (default 120): the cap.
+- `DisableVsync` (default true): turn vsync off.
 
 ## Developer tools
 

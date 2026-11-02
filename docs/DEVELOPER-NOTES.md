@@ -19,10 +19,12 @@ Measured effect:
 - announcements took several seconds
 - NVDA itself froze, for up to 18 seconds at a time
 
-With vsync off and `Application.targetFrameRate = 120`, reads take about 8 ms and the freezes disappear.
+With vsync off, reads take a few milliseconds and the freezes disappear. Keypress to speech dropped from several
+seconds to about 0.3 seconds.
 
-Suggestion: when `AssistiveSupport.isScreenReaderEnabled` is true, turn vsync off and cap the frame rate instead.
-Tearing doesn't matter to a player who can't see the screen. The mod does this in `src/Native/FrameRateUnlock.cs`.
+Suggestion: when `AssistiveSupport.isScreenReaderEnabled` is true, turn vsync off, or offer it as a visible
+setting. Tearing doesn't matter to a player who can't see the screen. The mod does this in
+`src/Native/FrameRateUnlock.cs`.
 
 ## 2. Unity's Accessibility module behaviour worth knowing
 
@@ -34,9 +36,15 @@ Tearing doesn't matter to a player who can't see the screen. The mod does this i
 - **Changing a label or value is silent.** Setting `node.label` or `node.value` updates what the screen reader reads
   on request, but raises no event. A slider moved with the arrow keys therefore says nothing. Announce the new value
   with `AssistiveSupport.notificationDispatcher.SendAnnouncement` when the changed node has focus.
-- **Text fields and sliders need `focusChanged`.** On Windows, focusing a node does not focus the uGUI control. Per
-  Unity's documentation, handle `AccessibilityNode.focusChanged` and select the real `TMP_InputField` or `Slider`
-  so keyboard input reaches it.
+- **Text fields and sliders need `focusChanged`, but verify it fires.** On Windows, focusing a node does not focus
+  the uGUI control. Unity's documentation says to handle `AccessibilityNode.focusChanged` and select the real
+  `TMP_InputField` or `Slider`. In our testing `focusChanged` never fired for focus moves the game initiates. Since
+  Vaudeville's menus already use uGUI selection, a simpler model works: keep the node focus and
+  `EventSystem.currentSelectedGameObject` in step, in both directions.
+- **Text fields have no caret review.** A `TextField` node exposes only its value, so a screen reader cannot read
+  the character or line at the caret, and arrow keys inside a field are silent. Announce the character at the
+  caret on Left and Right, the line on Up and Down in multi-line fields, and removed text on Backspace and Delete.
+  Leave typed-character echo to the screen reader, which already handles it.
 - **Sliders adjust only with numeric values.** `incremented` and `decremented` fire on Windows only when
   `node.value` is a number.
 - **Timing.** Announcements reach NVDA in about 0.17 seconds. A focus change is spoken in about 0.65 seconds.
@@ -54,6 +62,11 @@ selection, which is a good base. Problems found so far:
 - **Story Vault (Editor & Stories).** The scene uses the legacy `StandaloneInputModule` and starts with nothing
   selected, so the arrow keys and Enter do nothing at all. Setting `EventSystem.firstSelectedGameObject` to the first
   button would make it keyboard operable.
+- **Leaving a text field.** In the conversation's question field the arrows move the caret and Escape leaves the
+  whole conversation, so a keyboard user has no way to leave the field for the OK button except sending the
+  question. Up and Down could move to the neighbouring control, since they do nothing in a single-line field.
+- **Text fields without labels.** The question field is described only by its placeholder ("Type here or speak
+  into your microphone..."), which disappears once text is typed. Give fields a label that stays.
 - **Buttons without text.** The Story Vault's first button (`SteamSubscribe`) has no text, so it has no name a screen
   reader can read. Image-only buttons need a label in their accessibility node.
 

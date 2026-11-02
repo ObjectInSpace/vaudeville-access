@@ -32,6 +32,7 @@ namespace VaudevilleAccess.Screens
         private readonly A11yHost _host;
         private readonly Dictionary<int, Entry> _byObject = new();
         private readonly Dictionary<IntPtr, Entry> _byNode = new();
+        private readonly TextFieldReview _textReview;
         private string _signature = "";
         private float _nextScan;
         private int _lastSelectedId;
@@ -41,6 +42,7 @@ namespace VaudevilleAccess.Screens
         {
             _log = log;
             _host = host;
+            _textReview = new TextFieldReview(log);
         }
 
         /// <summary>Stops publishing (another screen owns the hierarchy) or resumes.</summary>
@@ -67,7 +69,7 @@ namespace VaudevilleAccess.Screens
                     _nextScan = now + ScanInterval;
                     Scan();
                 }
-                if (HotKeys.GameHasFocus()) LeaveSingleLineFieldOnUpDown();
+                _textReview.Tick(HotKeys.GameHasFocus());
                 FollowGameSelection();
             }
             catch (Exception e)
@@ -127,7 +129,9 @@ namespace VaudevilleAccess.Screens
                 if (value == entry.Value) continue;
                 entry.Value = value;
                 _host.SetValue(entry.Node, value);
-                if (isFocused && value.Length > 0) NativeAnnouncer.Announce(value);
+                // Text fields are reviewed by TextFieldReview; announcing their whole value per keystroke is noise.
+                if (isFocused && value.Length > 0 && entry.Node.role != AccessibilityRole.TextField)
+                    NativeAnnouncer.Announce(value);
             }
             EnsureGameSelection();
         }
@@ -386,24 +390,6 @@ namespace VaudevilleAccess.Screens
                 if (placeholder.Length > 0) return placeholder;
             }
             return Humanize(go.name);
-        }
-
-        // In a single-line text field the arrows move the caret, so nothing leaves the field, and Escape leaves the
-        // whole conversation (the game's own binding). Up and Down have no use in one line of text: let them leave the
-        // field for the neighbouring control.
-        private void LeaveSingleLineFieldOnUpDown()
-        {
-            bool up = HotKeys.Pressed(HotKeys.VK_UP), down = HotKeys.Pressed(HotKeys.VK_DOWN);
-            if (!up && !down) return;
-            var es = EventSystem.current;
-            var selected = es?.currentSelectedGameObject;
-            var input = selected != null ? selected.GetComponent<TMP_InputField>() : null;
-            if (input == null || !input.isFocused || input.lineType != TMP_InputField.LineType.SingleLine) return;
-            var next = up ? input.FindSelectableOnUp() : input.FindSelectableOnDown();
-            if (next == null) return;
-            input.DeactivateInputField();
-            es!.SetSelectedGameObject(next.gameObject);
-            _log.Msg($"[GenericUi] Left text field with {(up ? "Up" : "Down")} for '{next.gameObject.name}'.");
         }
 
         // The control's own text, else (sliders, fields) the first text among its parent's children.
