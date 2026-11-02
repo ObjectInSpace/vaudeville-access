@@ -100,6 +100,7 @@ namespace VaudevilleAccess.Screens
             public AccessibilityRole Role;
             public Rect Frame;
             public List<TMP_Text> ValueTexts = new();
+            public bool Disabled;
         }
 
         private void Scan()
@@ -172,14 +173,30 @@ namespace VaudevilleAccess.Screens
 
             foreach (var control in UnityEngine.Object.FindObjectsByType<Selectable>(FindObjectsSortMode.None))
             {
-                if (control == null || !control.IsActive() || !control.IsInteractable()) continue;
+                if (control == null || !control.IsActive()) continue;
                 var go = control.gameObject;
+                // Studio map post-its are 3D objects carrying a uGUI Selectable. Locked locations are non-interactable
+                // but still on the map for a sighted player, so they are listed as unavailable rather than dropped.
+                var map = go.GetComponent<Il2Cpp.MapLocation>();
+                bool interactable = control.IsInteractable();
+                if (!interactable && map == null) continue;
                 if (!IsVisible(go) || IsIgnored(go)) continue;
                 if (control.TryCast<Scrollbar>() != null) continue;
 
-                var labelText = FindLabel(go, control);
-                if (labelText != null) labelTexts.Add(labelText.GetInstanceID());
-                string label = labelText != null ? Clean(labelText.text) : FallbackLabel(go);
+                string label;
+                if (map != null)
+                {
+                    label = Clean(map.LocationName);
+                    if (label.Length == 0) label = Humanize(go.name);
+                }
+                else
+                {
+                    var texts = LabelTexts(go);
+                    foreach (var t in texts) labelTexts.Add(t.GetInstanceID());
+                    label = texts.Count > 0 ? JoinTexts(texts) : FallbackLabel(go);
+                    string context = ActionContext(go);
+                    if (context.Length > 0 && context != label) label = $"{label}, {context}";
+                }
 
                 var valueTexts = SideValueTexts(go);
                 foreach (var t in valueTexts) labelTexts.Add(t.GetInstanceID());
@@ -191,8 +208,9 @@ namespace VaudevilleAccess.Screens
                     Control = control,
                     Label = label,
                     Role = RoleOf(go),
-                    Frame = rt != null ? Frames.Of(rt) : default,
+                    Frame = rt != null ? Frames.Of(rt) : WorldFrame(go),
                     ValueTexts = valueTexts,
+                    Disabled = !interactable,
                 });
             }
 
@@ -285,7 +303,8 @@ namespace VaudevilleAccess.Screens
             bool option = parent != null;
             var role = option ? AccessibilityRole.Button : c.Role;
             entry.Node = screen.Add(c.Label, role, c.Frame, parent,
-                value: entry.Value.Length > 0 ? entry.Value : null, state: StateOf(c.Go));
+                value: entry.Value.Length > 0 ? entry.Value : null,
+                state: c.Disabled ? AccessibilityState.Disabled : StateOf(c.Go));
             if (c.Control != null) Wire(screen, entry, role);
             _byObject[c.Go.GetInstanceID()] = entry;
             _ordered.Add(entry);
@@ -344,6 +363,9 @@ namespace VaudevilleAccess.Screens
 
         private static void Activate(GameObject go)
         {
+            // The Studio map: the game travels through the post-it's own raycast-target method.
+            var map = go.GetComponent<Il2Cpp.MapLocation>();
+            if (map != null) { map.activatePrimary(); return; }
             var input = go.GetComponent<TMP_InputField>();
             if (input != null) { input.ActivateInputField(); return; }
             var toggle = go.GetComponent<Toggle>();
@@ -489,23 +511,72 @@ namespace VaudevilleAccess.Screens
         }
 
         // The control's own text, else (sliders, fields) the first text among its parent's children.
-        private static TMP_Text? FindLabel(GameObject go, Selectable control)
+        // All of the control's own texts (a save card's story, progress and date), excluding texts that belong to a
+        // nested control; failing that (sliders, fields), the first text among its parent's children.
+        private static List<TMP_Text> LabelTexts(GameObject go)
         {
+            var result = new List<TMP_Text>();
             if (go.GetComponent<TMP_InputField>() == null && go.GetComponent<TMP_Dropdown>() == null)
             {
-                var own = go.GetComponentInChildren<TMP_Text>();
-                if (own != null && Clean(own.text).Length > 0) return own;
+                var self = go.GetComponent<Selectable>();
+                foreach (var text in go.GetComponentsInChildren<TMP_Text>())
+                {
+                    if (Clean(text.text).Length == 0) continue;
+                    var owner = text.GetComponentInParent<Selectable>();
+                    if (owner == null || owner.Pointer != self.Pointer) continue;
+                    result.Add(text);
+                }
+                if (result.Count > 0) return result;
             }
             var parent = go.transform.parent;
-            if (parent == null) return null;
+            if (parent == null) return result;
             for (int i = 0; i < parent.childCount; i++)
             {
                 var sibling = parent.GetChild(i);
                 if (sibling == go.transform) continue;
                 var text = sibling.GetComponent<TMP_Text>();
-                if (text != null && Clean(text.text).Length > 0) return text;
+                if (text != null && Clean(text.text).Length > 0) { result.Add(text); break; }
             }
-            return null;
+            return result;
+        }
+
+        private static string JoinTexts(List<TMP_Text> texts)
+        {
+            var sb = new StringBuilder();
+            foreach (var t in texts)
+            {
+                string s = Clean(t.text);
+                if (s.Length > 0) sb.Append(sb.Length > 0 ? ", " : "").Append(s);
+            }
+            return sb.ToString();
+        }
+
+        // A button whose click acts on another control names that control: each save's DELETE calls that save card's
+        // Delete, so it reads "DELETE, Story, PROGRESS 58%, ..." instead of a row of identical DELETE buttons.
+        private static string ActionContext(GameObject go)
+        {
+            var button = go.GetComponent<Button>();
+            if (button == null) return "";
+            int n = button.onClick.GetPersistentEventCount();
+            for (int i = 0; i < n; i++)
+            {
+                var component = button.onClick.GetPersistentTarget(i)?.TryCast<Component>();
+                if (component == null || component.gameObject.Pointer == go.Pointer) continue;
+                if (component.GetComponent<Selectable>() == null) continue;
+                var texts = LabelTexts(component.gameObject);
+                if (texts.Count > 0) return JoinTexts(texts);
+            }
+            return "";
+        }
+
+        // 3D objects (map post-its) have no RectTransform: project their position to the screen.
+        private static Rect WorldFrame(GameObject go)
+        {
+            var cam = Camera.main;
+            if (cam == null) return default;
+            Vector3 p = cam.WorldToScreenPoint(go.transform.position);
+            if (p.z < 0) return default;
+            return new Rect(p.x - 30f, Screen.height - p.y - 30f, 60f, 60f);
         }
 
         // Hidden panels in this game often stay active with a CanvasGroup at alpha 0.

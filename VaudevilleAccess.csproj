@@ -40,6 +40,9 @@
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(Il2CppAsm)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.TextMeshPro"><HintPath>$(Il2CppAsm)\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.InputSystem"><HintPath>$(Il2CppAsm)\Unity.InputSystem.dll</HintPath><Private>false</Private></Reference>
+    <!-- The game's own types (MapLocation, OffWorldInit, UnlockUI, MessageUI...) for screen-specific behaviour. -->
+    <Reference Include="Assembly-CSharp"><HintPath>$(Il2CppAsm)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(Il2CppAsm)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <!-- Deploy into the game's Mods folder after every build, so the game never runs a stale copy. -->

@@ -25,6 +25,7 @@ namespace VaudevilleAccess
         private FocusTest? _focusTest;
         private readonly Diagnostics.DumpScheduler _dumps = new();
         private Screens.GenericUiScreen? _generic;
+        private Screens.LiveTexts? _liveTexts;
 
         public override void OnInitializeMelon()
         {
@@ -39,6 +40,7 @@ namespace VaudevilleAccess
             }
             _probe = new NativeA11yProbe(LoggerInstance, _host);
             _generic = new Screens.GenericUiScreen(LoggerInstance, _host);
+            if (_host.Available) _liveTexts = new Screens.LiveTexts(LoggerInstance);
             _frameStats = new FrameStats(LoggerInstance);
             if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.perftest")))
                 _perf = new PerfExperiment(LoggerInstance);
@@ -61,6 +63,7 @@ namespace VaudevilleAccess
             LoggerInstance.Msg($"Scene initialized: {buildIndex} '{sceneName}'.");
             _dumps.OnSceneInitialized(sceneName);
             _generic?.OnSceneChanged();
+            _liveTexts?.OnSceneChanged();
             _perf?.Start();
             _announceTest?.Start();
             if (!_autoBuildPending) return;
@@ -75,6 +78,7 @@ namespace VaudevilleAccess
             _host?.Tick();
             _probe?.Tick();
             _generic?.Tick();
+            _liveTexts?.Tick();
             _frameStats?.Tick();
             _perf?.Tick();
             _announceTest?.Tick();

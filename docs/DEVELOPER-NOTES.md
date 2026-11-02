@@ -75,7 +75,21 @@ selection, which is a good base. Problems found so far:
 - **Buttons without text.** The Story Vault's first button (`SteamSubscribe`) has no text, so it has no name a screen
   reader can read. Image-only buttons need a label in their accessibility node.
 
-## 4. To be continued
+## 4. Screen by screen
+
+- **Save game selection.** Each card's meaning is spread over separate texts (story, progress, date), and each
+  DELETE button looks the same as the others. A card's node should carry all three ("Story, progress 58%,
+  2 November 2026"), and each Delete button should name the save it deletes.
+- **Studio map.** The location post-its are already uGUI Selectables with explicit navigation, which makes the
+  map keyboard navigable. Locked locations are non-interactable, which is right, but their node should still exist
+  and say it is locked, as a sighted player sees it. Use `MapLocation.LocationName` as the label.
+- **Text that changes in place.** The AI loading overlay (`OffWorldInit`), `MessageLabel`, the unlock popup
+  (`UnlockUI`) and `MessageUI` appear or change without any focus change. Announce them with `SendAnnouncement`
+  when they appear.
+- **Image-only buttons.** Return, Open Notebook and Silence in conversations, and Steam Subscribe in the Story
+  Vault, have no text. Their nodes need labels.
+
+## 5. To be continued
 
 These notes grow as the mod covers more of the game: the Studio hub, conversations, the accusation, and the
 Workshop.
