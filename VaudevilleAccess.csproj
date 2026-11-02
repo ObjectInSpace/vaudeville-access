@@ -35,6 +35,11 @@
     <Reference Include="Il2Cppmscorlib"><HintPath>$(Il2CppAsm)\Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(Il2CppAsm)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.AccessibilityModule"><HintPath>$(Il2CppAsm)\UnityEngine.AccessibilityModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(Il2CppAsm)\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(Il2CppAsm)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(Il2CppAsm)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(Il2CppAsm)\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.InputSystem"><HintPath>$(Il2CppAsm)\Unity.InputSystem.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <!-- Deploy into the game's Mods folder after every build, so the game never runs a stale copy. -->

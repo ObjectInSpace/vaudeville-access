@@ -20,6 +20,7 @@ namespace VaudevilleAccess
         private FrameStats? _frameStats;
         private PerfExperiment? _perf;
         private FrameRateUnlock? _frameRate;
+        private readonly Diagnostics.DumpScheduler _dumps = new();
 
         public override void OnInitializeMelon()
         {
@@ -42,6 +43,7 @@ namespace VaudevilleAccess
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
             LoggerInstance.Msg($"Scene initialized: {buildIndex} '{sceneName}'.");
+            _dumps.OnSceneInitialized(sceneName);
             _perf?.Start();
             if (!_autoBuildPending) return;
             _autoBuildPending = false;
@@ -55,7 +57,10 @@ namespace VaudevilleAccess
             _probe?.Tick();
             _frameStats?.Tick();
             _perf?.Tick();
+            _dumps.Tick();
             if (!HotKeys.GameHasFocus()) return;
+
+            if (HotKeys.CtrlPressed(HotKeys.VK_F8)) Diagnostics.UiDump.Write("manual");
 
             if (HotKeys.CtrlPressed(HotKeys.VK_F9)) _probe?.Build();
             if (HotKeys.CtrlPressed(HotKeys.VK_F10)) _probe?.FocusNext();
