@@ -176,11 +176,10 @@ namespace VaudevilleAccess.Screens
                 if (control == null || !control.IsActive()) continue;
                 var go = control.gameObject;
                 // Studio map post-its are 3D objects carrying a uGUI Selectable. Locked locations are non-interactable
-                // and the game's keyboard navigation never reaches them, so they are left out like any other
-                // non-interactable control: the mod mirrors the game rather than adding to it (decision 2026-11-02).
+                // but still on the map for a sighted player, so they are listed as unavailable rather than dropped.
                 var map = go.GetComponent<Il2Cpp.MapLocation>();
                 bool interactable = control.IsInteractable();
-                if (!interactable) continue;
+                if (!interactable && map == null) continue;
                 if (!IsVisible(go) || IsIgnored(go)) continue;
                 if (control.TryCast<Scrollbar>() != null) continue;
 
