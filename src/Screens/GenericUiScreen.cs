@@ -141,15 +141,28 @@ namespace VaudevilleAccess.Screens
 
         // Some screens (the Story Vault) start with nothing selected, which leaves the game's own keyboard navigation
         // dead: arrows and Enter have no control to act on. Give the game the control the screen reader is on.
+        // Also covers a selection left on a control that has since been hidden: leaving the story editor kept the
+        // selection on the editor's hidden Exit button, from which the arrows reach nothing, so nothing changed and
+        // nothing was said.
         private void EnsureGameSelection()
         {
             var es = EventSystem.current;
-            if (es == null || es.currentSelectedGameObject != null) return;
+            if (es == null) return;
+            var current = es.currentSelectedGameObject;
+            if (current != null && (_byObject.ContainsKey(current.GetInstanceID()) || IsLiveControl(current))) return;
             var target = _host.Focused is { } f && _byNode.TryGetValue(f.Pointer, out var fe) && fe.Control != null ? fe : FirstControl();
             if (target == null) return;
             _lastSelectedId = target.Go.GetInstanceID();
             es.SetSelectedGameObject(target.Go);
-            _log.Msg($"[GenericUi] Game had no selection; selected '{target.Label}'.");
+            _log.Msg(current == null
+                ? $"[GenericUi] Game had no selection; selected '{target.Label}'."
+                : $"[GenericUi] Game selection '{current.name}' is hidden; selected '{target.Label}'.");
+        }
+
+        private static bool IsLiveControl(GameObject go)
+        {
+            var selectable = go.GetComponent<Selectable>();
+            return selectable != null && selectable.IsActive() && selectable.IsInteractable() && IsVisible(go);
         }
 
         private List<Candidate> Collect()
@@ -231,17 +244,20 @@ namespace VaudevilleAccess.Screens
             }
 
             var screen = _host.NewScreen($"Generic ({candidates.Count})");
+            // Open dropdowns: Unity's documented shape is the dropdown node marked Expanded with its options as child
+            // nodes. The options are uGUI Toggles inside the dropdown, which would otherwise read as check boxes.
+            // Parents go first so the options can attach to them.
+            var options = new List<Candidate>();
             foreach (var c in candidates)
             {
-                var entry = new Entry { Go = c.Go, Control = c.Control, Label = c.Label };
-                entry.ReadValue = ValueReader(c.Go, c.ValueTexts);
-                entry.Value = entry.ReadValue?.Invoke() ?? "";
-                var state = StateOf(c.Go);
-                entry.Node = screen.Add(c.Label, c.Role, c.Frame, value: entry.Value.Length > 0 ? entry.Value : null, state: state);
-                if (c.Control != null) Wire(screen, entry, c.Role);
-                _byObject[c.Go.GetInstanceID()] = entry;
-                _ordered.Add(entry);
-                _byNode[entry.Node.Pointer] = entry;
+                if (DropdownOf(c) != null) { options.Add(c); continue; }
+                AddEntry(screen, c, null);
+            }
+            foreach (var c in options)
+            {
+                var dropdown = DropdownOf(c)!;
+                AccessibilityNode? parent = _byObject.TryGetValue(dropdown.gameObject.GetInstanceID(), out var owner) ? owner.Node : null;
+                AddEntry(screen, c, parent);
             }
 
             var selected = EventSystem.current?.currentSelectedGameObject;
@@ -259,6 +275,29 @@ namespace VaudevilleAccess.Screens
                 Diagnostics.UiDump.Write($"rebuild{candidates.Count}");
             }
             EnsureGameSelection();
+        }
+
+        private void AddEntry(A11yScreen screen, Candidate c, AccessibilityNode? parent)
+        {
+            var entry = new Entry { Go = c.Go, Control = c.Control, Label = c.Label };
+            entry.ReadValue = ValueReader(c.Go, c.ValueTexts);
+            entry.Value = entry.ReadValue?.Invoke() ?? "";
+            bool option = parent != null;
+            var role = option ? AccessibilityRole.Button : c.Role;
+            entry.Node = screen.Add(c.Label, role, c.Frame, parent,
+                value: entry.Value.Length > 0 ? entry.Value : null, state: StateOf(c.Go));
+            if (c.Control != null) Wire(screen, entry, role);
+            _byObject[c.Go.GetInstanceID()] = entry;
+            _ordered.Add(entry);
+            _byNode[entry.Node.Pointer] = entry;
+        }
+
+        // The open dropdown a candidate is an option of, if any.
+        private static TMP_Dropdown? DropdownOf(Candidate c)
+        {
+            if (c.Control == null || c.Go.GetComponent<Toggle>() == null) return null;
+            var dropdown = c.Go.GetComponentInParent<TMP_Dropdown>();
+            return dropdown != null && dropdown.IsExpanded ? dropdown : null;
         }
 
         private Entry? FirstControl()
@@ -308,7 +347,13 @@ namespace VaudevilleAccess.Screens
             var input = go.GetComponent<TMP_InputField>();
             if (input != null) { input.ActivateInputField(); return; }
             var toggle = go.GetComponent<Toggle>();
-            if (toggle != null) { toggle.isOn = !toggle.isOn; return; }
+            if (toggle != null)
+            {
+                // A dropdown option is chosen, not flipped (choosing it also closes the list).
+                bool option = go.GetComponentInParent<TMP_Dropdown>() is { IsExpanded: true };
+                toggle.isOn = option || !toggle.isOn;
+                return;
+            }
             var dropdown = go.GetComponent<TMP_Dropdown>();
             if (dropdown != null) { dropdown.Show(); return; }
             var button = go.GetComponent<Button>();
@@ -341,8 +386,7 @@ namespace VaudevilleAccess.Screens
         // of the arrow pressed.
         private void GuardSelection(EventSystem es, GameObject selected, int previousId)
         {
-            var selectable = selected.GetComponent<Selectable>();
-            if (selectable != null && selectable.IsActive() && selectable.IsInteractable() && IsVisible(selected))
+            if (IsLiveControl(selected))
             {
                 _nextScan = 0f;
                 return;
@@ -376,7 +420,10 @@ namespace VaudevilleAccess.Screens
         private static AccessibilityState StateOf(GameObject go)
         {
             var toggle = go.GetComponent<Toggle>();
-            return toggle != null && toggle.isOn ? AccessibilityState.Selected : AccessibilityState.None;
+            if (toggle != null && toggle.isOn) return AccessibilityState.Selected;
+            var dropdown = go.GetComponent<TMP_Dropdown>();
+            if (dropdown != null && dropdown.IsExpanded) return AccessibilityState.Expanded;
+            return AccessibilityState.None;
         }
 
         private static Func<string>? ValueReader(GameObject go, List<TMP_Text> valueTexts)
