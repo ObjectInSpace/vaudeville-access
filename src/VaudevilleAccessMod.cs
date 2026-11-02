@@ -10,12 +10,13 @@ using VaudevilleAccess.Native;
 namespace VaudevilleAccess
 {
     /// <summary>
-    /// Mod entry point. Current scope is Phase 0: <see cref="NativeA11yProbe"/> tests whether Unity 6.3's own
-    /// screen-reader hierarchy (AccessibilityHierarchy/AccessibilityNode) can be driven from a mod, given that the
-    /// game build stripped the public construction API and only the engine-called internals survived.
+    /// Mod entry point. <see cref="A11yHost"/> publishes Unity 6.3's native accessibility hierarchy, hand-assembled
+    /// because the game build stripped the public API. Screen adapters (Phase 2 on) describe the game's screens through
+    /// it; for now <see cref="NativeA11yProbe"/> is the test screen. See docs/PLAN.md.
     /// </summary>
     public sealed class VaudevilleAccessMod : MelonMod
     {
+        private A11yHost? _host;
         private NativeA11yProbe? _probe;
         private FrameStats? _frameStats;
         private PerfExperiment? _perf;
@@ -26,7 +27,14 @@ namespace VaudevilleAccess
         {
             LogBuildStamp();
             _frameRate = new FrameRateUnlock(LoggerInstance, MelonPreferences.CreateCategory("VaudevilleAccess"));
-            _probe = new NativeA11yProbe(LoggerInstance);
+            _host = new A11yHost(LoggerInstance);
+            if (!_host.Available)
+            {
+                // Silence is the failure a blind player cannot diagnose: make it audible.
+                NativeA11yProbe.Beep(false);
+                NativeA11yProbe.Beep(false);
+            }
+            _probe = new NativeA11yProbe(LoggerInstance, _host);
             _frameStats = new FrameStats(LoggerInstance);
             if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.perftest")))
                 _perf = new PerfExperiment(LoggerInstance);
@@ -54,6 +62,7 @@ namespace VaudevilleAccess
         public override void OnUpdate()
         {
             _frameRate?.Tick();
+            _host?.Tick();
             _probe?.Tick();
             _frameStats?.Tick();
             _perf?.Tick();

@@ -222,21 +222,10 @@ namespace VaudevilleAccess.Diagnostics
             return sb.ToString();
         }
 
-        // Top-left origin, matching how Windows reports element rectangles.
         private static string ScreenRect(RectTransform rt)
         {
-            var corners = new Il2CppStructArray<Vector3>(4);
-            rt.GetWorldCorners(corners);
-            var canvas = rt.GetComponentInParent<Canvas>();
-            Camera? cam = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
-            float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
-            for (int i = 0; i < 4; i++)
-            {
-                Vector2 s = RectTransformUtility.WorldToScreenPoint(cam, corners[i]);
-                minX = Math.Min(minX, s.x); maxX = Math.Max(maxX, s.x);
-                minY = Math.Min(minY, s.y); maxY = Math.Max(maxY, s.y);
-            }
-            return $"({minX:0},{Screen.height - maxY:0} {maxX - minX:0}x{maxY - minY:0})";
+            var r = Native.Frames.Of(rt);
+            return $"({r.x:0},{r.y:0} {r.width:0}x{r.height:0})";
         }
 
         private static string PathOf(Transform t)
