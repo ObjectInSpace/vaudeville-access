@@ -45,6 +45,28 @@ All verified 2026-11-02 against the running game, NVDA 2026.2rc2.
 - **Remaining latency is about 1.5 seconds** from the mod moving focus to NVDA speaking: 0.7 to 1.2 seconds inside
   Unity before the first UI Automation event, then about 0.6 seconds in NVDA.
 
+## Phase 1 results (2026-11-02)
+
+- **Native host and self-check:** `src/Native/A11yHost.cs` and `NativeApiCheck.cs`. The self-check is proven to
+  fail on a missing member.
+- **Instruments:** a UI dump 2 and 8 seconds after each scene load, on every screen rebuild and on Ctrl+F8;
+  a binding dump per scene.
+- **Spike A, text entry:** typing reaches the game's `TMP_InputField`. Unity's TextField node has no caret
+  review, so `src/Screens/TextFieldReview.cs` speaks the character, line or word at the caret and removed text.
+  Typed-character echo is left to the screen reader. Up/Down leave a field at its edges.
+- **Spike B, announcements:** native announcements are spoken in 0.16 to 0.37 seconds. No speech library is
+  needed on Windows.
+- **Spike C, latency:** vsync off (no frame cap, by decision) gives about 440 fps and about 0.16 seconds from
+  keypress to speech. The rest is Unity's own dispatch.
+- **Unity's `focusChanged` never fires** for focus moves in this game, so the documented text-field recipe isn't
+  available. Following the game's uGUI selection replaces it.
+- **Phase 2 started early:** the game's menus support keyboard navigation through uGUI selection, so
+  `src/Screens/GenericUiScreen.cs` publishes any uGUI screen without per-screen code. It already covers the intro
+  menu, Options, save selection, the Studio map, conversations and the story editor, including combo boxes. It
+  keeps focus and selection in sync, guards against the game selecting hidden controls, and announces value
+  changes.
+- MelonLoader's console is hidden (`UserData\Loader.cfg`, `hide_console = true`). Ship that setting in Phase 7.
+
 ## How the game is played (sighted)
 
 Taken from the decompiled code and scene list. Each item notes what the player must perceive and do.
