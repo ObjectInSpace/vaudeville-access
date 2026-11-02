@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>VaudevilleAccess</AssemblyName>
+    <RootNamespace>VaudevilleAccess</RootNamespace>
+    <!-- IL2CPP interop assemblies are not CLS/ref-safe; silence the noise, keep real warnings. -->
+    <NoWarn>CS0436;CS0114;CS0108;CS0626;CS8632</NoWarn>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Deterministic>true</Deterministic>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Only src/ is compiled; decompiled/ and artifacts/ hold reference material. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+
+  <!-- Path to the game's MelonLoader install. Override on the command line if your install differs. -->
+  <PropertyGroup>
+    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\Common\Vaudeville</GameDir>
+    <MelonDir>$(GameDir)\MelonLoader</MelonDir>
+    <Il2CppAsm>$(MelonDir)\Il2CppAssemblies</Il2CppAsm>
+    <MelonNet6>$(MelonDir)\net6</MelonNet6>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader"><HintPath>$(MelonNet6)\MelonLoader.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(MelonNet6)\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Common"><HintPath>$(MelonNet6)\Il2CppInterop.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(Il2CppAsm)\Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(Il2CppAsm)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AccessibilityModule"><HintPath>$(Il2CppAsm)\UnityEngine.AccessibilityModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Deploy into the game's Mods folder after every build, so the game never runs a stale copy. -->
+  <Target Name="DeployToGameMods" AfterTargets="Build" Condition="Exists('$(GameDir)\MelonLoader')">
+    <MakeDir Directories="$(GameDir)\Mods" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" OverwriteReadOnlyFiles="true" />
+    <Message Importance="high" Text="Deployed $(TargetFileName) -&gt; $(GameDir)\Mods" />
+  </Target>
+
+</Project>
