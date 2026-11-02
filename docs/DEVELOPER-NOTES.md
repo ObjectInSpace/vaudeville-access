@@ -83,6 +83,13 @@ selection, which is a good base. Problems found so far:
 - **Studio map.** The location post-its are already uGUI Selectables with explicit navigation, which makes the
   map keyboard navigable. Locked locations are non-interactable, which is right, but their node should still exist
   and say it is locked, as a sighted player sees it. Use `MapLocation.LocationName` as the label.
+- **Studio navigation.** The map's explicit navigation skips locked locations, so a keyboard user never reaches
+  them, while a sighted player sees them. The Quit, Accuse, Options and Notes buttons also appear unreachable from
+  the map with the arrow keys. Every item on screen should be reachable by keyboard.
+- **Push-to-talk on Left Ctrl.** Screen reader users press Ctrl constantly to stop speech. If holding Left Ctrl
+  records from the microphone, every Ctrl press in a conversation may record and send a question. In one test
+  session the game heard "you" and sent it to the character without the player meaning to ask anything. Consider
+  another key, or a setting to change it.
 - **Text that changes in place.** The AI loading overlay (`OffWorldInit`), `MessageLabel`, the unlock popup
   (`UnlockUI`) and `MessageUI` appear or change without any focus change. Announce them with `SendAnnouncement`
   when they appear.
