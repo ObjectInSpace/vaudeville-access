@@ -15,6 +15,7 @@ namespace VaudevilleAccess.Screens
     /// - MessageLabel: transient messages in the Studio and conversations.
     /// - UnlockUI: the popup when a conversation unlocks a location.
     /// - MessageUI: message dialogs (title and body).
+    /// - CharacterLabel and LocationLabel: who and where, on arriving at a location.
     /// Each source is announced when it becomes visible with text, or its text changes while visible.
     /// </summary>
     public sealed class LiveTexts
@@ -48,6 +49,16 @@ namespace VaudevilleAccess.Screens
 
                 foreach (var message in UnityEngine.Object.FindObjectsByType<MessageUI>(FindObjectsSortMode.None))
                     Watch(message.Pointer, Shown(message.canvasGroup), Join(Text(message.messageTitle), Text(message.messageBody)));
+
+                // Arriving at a location: the character's name and the location animate onto the screen.
+                foreach (var character in UnityEngine.Object.FindObjectsByType<CharacterLabel>(FindObjectsSortMode.None))
+                    Watch(character.Pointer, character.isActiveAndEnabled, Text(character.GetComponent<TMP_Text>()));
+
+                // In the Studio the same component shows the map location under selection, which focus already speaks.
+                bool studio = UnityEngine.Object.FindObjectsByType<MapLocation>(FindObjectsSortMode.None).Length > 0;
+                if (!studio)
+                    foreach (var location in UnityEngine.Object.FindObjectsByType<LocationLabel>(FindObjectsSortMode.None))
+                        Watch(location.Pointer, location.isActiveAndEnabled, Text(location.label));
             }
             catch (Exception e)
             {
