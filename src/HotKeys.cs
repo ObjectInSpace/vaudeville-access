@@ -11,6 +11,7 @@ namespace VaudevilleAccess
     internal static class HotKeys
     {
         public const int VK_CONTROL = 0x11;
+        public const int VK_LEFT = 0x25;
         public const int VK_UP = 0x26;
         public const int VK_DOWN = 0x28;
         public const int VK_F8 = 0x77;
@@ -31,6 +32,9 @@ namespace VaudevilleAccess
             GetWindowThreadProcessId(GetForegroundWindow(), out uint pid);
             return pid == _pid;
         }
+
+        /// <summary>True while <paramref name="vk"/> is held. Does not touch edge-detection state.</summary>
+        public static bool IsDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
         /// <summary>True on the frame <paramref name="vk"/> goes down. Observes only; the game still gets the key.</summary>
         public static bool Pressed(int vk)

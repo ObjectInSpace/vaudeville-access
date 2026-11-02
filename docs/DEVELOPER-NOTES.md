@@ -47,7 +47,8 @@ setting. Tearing doesn't matter to a player who can't see the screen. The mod do
   Leave typed-character echo to the screen reader, which already handles it.
 - **Sliders adjust only with numeric values.** `incremented` and `decremented` fire on Windows only when
   `node.value` is a number.
-- **Timing.** Announcements reach NVDA in about 0.17 seconds. A focus change is spoken in about 0.65 seconds.
+- **Timing.** With vsync off (about 440 fps on the test machine), a keypress that moves focus is spoken by NVDA
+  in about 0.16 seconds. Announcements take a similar time. With vsync on and an idle display it was seconds.
 - **Build stripping.** Vaudeville's build stripped the Accessibility module's public API because the game never
   references it. Code inside the game that uses the API keeps it, so this is only an obstacle for a mod.
 
@@ -62,6 +63,10 @@ selection, which is a good base. Problems found so far:
 - **Story Vault (Editor & Stories).** The scene uses the legacy `StandaloneInputModule` and starts with nothing
   selected, so the arrow keys and Enter do nothing at all. Setting `EventSystem.firstSelectedGameObject` to the first
   button would make it keyboard operable.
+- **Navigation into hidden panels.** In the story editor, after switching to the Characters tab, Down moves the
+  selection onto the General tab's text fields, which are hidden but still active and interactable. The highlight
+  disappears for a sighted player; a screen reader user hears nothing, or the hidden field's text. Deactivate or
+  make non-interactable the panels that aren't showing, or give the tabs explicit navigation.
 - **Leaving a text field.** In the conversation's question field the arrows move the caret and Escape leaves the
   whole conversation, so a keyboard user has no way to leave the field for the OK button except sending the
   question. Up and Down could move to the neighbouring control, since they do nothing in a single-line field.

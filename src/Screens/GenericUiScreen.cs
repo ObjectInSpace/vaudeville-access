@@ -37,6 +37,9 @@ namespace VaudevilleAccess.Screens
         private float _nextScan;
         private int _lastSelectedId;
         private bool _enabled = true;
+        private float _lastRebuildDump = -10f;
+        // Entries in reading order, for moving to a neighbouring control.
+        private readonly List<Entry> _ordered = new();
 
         public GenericUiScreen(MelonLogger.Instance log, A11yHost host)
         {
@@ -219,6 +222,7 @@ namespace VaudevilleAccess.Screens
         private void Rebuild(List<Candidate> candidates)
         {
             _byObject.Clear();
+            _ordered.Clear();
             _byNode.Clear();
             if (candidates.Count == 0)
             {
@@ -236,6 +240,7 @@ namespace VaudevilleAccess.Screens
                 entry.Node = screen.Add(c.Label, c.Role, c.Frame, value: entry.Value.Length > 0 ? entry.Value : null, state: state);
                 if (c.Control != null) Wire(screen, entry, c.Role);
                 _byObject[c.Go.GetInstanceID()] = entry;
+                _ordered.Add(entry);
                 _byNode[entry.Node.Pointer] = entry;
             }
 
@@ -245,6 +250,14 @@ namespace VaudevilleAccess.Screens
             _lastSelectedId = selected != null ? selected.GetInstanceID() : 0;
             _host.Publish(screen, focus?.Node);
             _log.Msg($"[GenericUi] Built {candidates.Count} nodes; focus '{focus?.Label}'.");
+
+            // Capture each new screen for later analysis, without the tester pressing anything.
+            float now = Time.realtimeSinceStartup;
+            if (now - _lastRebuildDump > 3f)
+            {
+                _lastRebuildDump = now;
+                Diagnostics.UiDump.Write($"rebuild{candidates.Count}");
+            }
             EnsureGameSelection();
         }
 
@@ -308,11 +321,47 @@ namespace VaudevilleAccess.Screens
             var selected = es?.currentSelectedGameObject;
             int id = selected != null ? selected.GetInstanceID() : 0;
             if (id == _lastSelectedId) return;
+            int previousId = _lastSelectedId;
             _lastSelectedId = id;
-            if (id == 0 || !_byObject.TryGetValue(id, out var entry)) return;
+            if (id == 0) return;
+            if (!_byObject.TryGetValue(id, out var entry))
+            {
+                GuardSelection(es!, selected!, previousId);
+                return;
+            }
             var focused = _host.Focused;
             if (focused != null && focused.Pointer == entry.Node.Pointer) return; // already there (screen reader moved it)
             _host.Focus(entry.Node);
+        }
+
+        // The game's automatic navigation can move selection onto controls of a hidden panel (seen in the story editor:
+        // Down on the Characters tab selected the General tab's invisible text fields). A sighted player sees the
+        // highlight vanish; a screen reader user gets silence. If the newly selected control is visible it just
+        // appeared, so rescan; if it is hidden, move the selection on to the next visible control in the direction
+        // of the arrow pressed.
+        private void GuardSelection(EventSystem es, GameObject selected, int previousId)
+        {
+            var selectable = selected.GetComponent<Selectable>();
+            if (selectable != null && selectable.IsActive() && selectable.IsInteractable() && IsVisible(selected))
+            {
+                _nextScan = 0f;
+                return;
+            }
+            if (!_byObject.TryGetValue(previousId, out var previous)) return;
+            int index = _ordered.IndexOf(previous);
+            if (index < 0) return;
+            bool backward = HotKeys.IsDown(HotKeys.VK_UP) || HotKeys.IsDown(HotKeys.VK_LEFT);
+            Entry? target = null;
+            for (int i = index + (backward ? -1 : 1); i >= 0 && i < _ordered.Count; i += backward ? -1 : 1)
+                if (_ordered[i].Control != null) { target = _ordered[i]; break; }
+            target ??= previous;
+
+            var input = selected.GetComponent<TMP_InputField>();
+            if (input != null && input.isFocused) input.DeactivateInputField();
+            _lastSelectedId = target.Go.GetInstanceID();
+            es.SetSelectedGameObject(target.Go);
+            _host.Focus(target.Node);
+            _log.Msg($"[GenericUi] Selection moved to hidden '{selected.name}'; redirected to '{target.Label}'.");
         }
 
         private static AccessibilityRole RoleOf(GameObject go)
