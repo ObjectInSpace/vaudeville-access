@@ -1,33 +1,54 @@
 # Screen reader support in Vaudeville: notes for the developers
 
-This mod adds screen reader support to Vaudeville from the outside. The better outcome is for the game to support
-screen readers itself, and Unity 6.3's Accessibility module makes that practical. These notes collect what we have
-learned so far, so that work can start from evidence rather than from scratch.
+## Why it's worth doing
 
-Everything here was verified in Vaudeville 2.0.1 (Unity 6000.3.20f1, Windows) with NVDA. The mod's source shows a
-working implementation of each point.
+Vaudeville is unusually well suited to blind players. It is a detective game played through conversation: you
+type or speak your questions and the characters answer out loud. Very few games put that much of the experience
+into sound and language already.
 
-## Suggested implementation outline
+This mod shows it works. With it, a blind player using a screen reader can start a game, travel around the city
+from the Studio map, question every character, keep notes, and make the accusation through to the end of a case.
+The mod is a proof of concept from the outside. Built into the game, the same support would reach every blind
+player on Steam with nothing to install, and it would keep working through updates.
 
-What the mod does, which the game could do directly with the public API (no workarounds needed in-game):
+## The game is already most of the way there
 
-1. **One accessibility hierarchy per screen.** Build it from the visible uGUI controls and texts, publish it
-   with `AssistiveSupport.activeHierarchy`, and rebuild it when a panel opens or closes. Text controls take
-   their label from their own text; sliders and fields from the text beside them. See
-   `src/Screens/GenericUiScreen.cs`.
-2. **Follow the existing uGUI selection.** Most menus already navigate with the keyboard through
-   `EventSystem` selection. Move screen reader focus (`SendLayoutChanged(node)`) when the selection changes,
-   and move the selection when the screen reader moves focus.
-3. **Announce what changes in place:** loading status, unlock popups, messages, the character and location on
-   arrival, and slider or setting values when they change. See `src/Screens/LiveTexts.cs`.
-4. **Caret review in text fields**, since the TextField node can't provide it. See
-   `src/Screens/TextFieldReview.cs`.
-5. **Nodes for the 3D objects that are clicked with the mouse:** map post-its (already uGUI Selectables) and
-   the accusation suspects (not yet). Activation calls the existing `activatePrimary`.
-6. **Turn vsync off while a screen reader is running** (section 1).
+- **The menus already work with the keyboard.** Nearly every screen uses uGUI selection with arrow-key
+  navigation, including the Studio map. A screen reader can follow that selection directly.
+- **Unity 6.3 does the hard part.** Its Accessibility module publishes an accessibility tree to Windows, which
+  NVDA, JAWS and Narrator read. The game only has to describe what is on screen.
+- **Conversations are already accessible by design.** Typed questions and spoken replies need very little extra.
 
-The mod's `src/Native/` folder exists only because the build stripped the public API. Inside the game none of
-it is needed.
+## Start small
+
+Each step below helps blind players on its own, so the work can stop at any point and still be worthwhile.
+
+1. **Turn vsync off when a screen reader is running.** One line of code, and it fixes the biggest problem
+   found: with vsync on and the monitor off, the game slows to about 13 fps and every announcement takes
+   seconds (section 1).
+2. **Publish a tree for the menus that already navigate by keyboard.** Build one node per visible control and
+   text, publish it with `AssistiveSupport.activeHierarchy`, and move screen reader focus
+   (`SendLayoutChanged(node)`) when the uGUI selection changes. This covers the intro menu, options, saves, the
+   Studio map and conversations. The mod's `src/Screens/GenericUiScreen.cs` does this generically in one file.
+3. **Announce what appears on screen by itself:** loading status, unlock popups, messages, and who and where on
+   arriving at a location (`SendAnnouncement`; see `src/Screens/LiveTexts.cs`).
+4. **Add nodes for the things clicked with the mouse:** the accusation suspects, which are currently mouse-only.
+   Activation can call the existing `activatePrimary`.
+5. **Polish:** caret review in text fields (`src/Screens/TextFieldReview.cs`), labels for image-only buttons, and
+   the navigation fixes listed in section 3.
+
+Inside the game none of the mod's `src/Native/` folder is needed. It exists only because the build stripped the
+Accessibility module's public API, which the game's own code would keep simply by using it.
+
+## Help is available
+
+The mod's author is an accessibility modder and is happy to help: answering questions, testing
+builds with a screen reader, or doing the implementation. See the contact details at the end.
+
+## Reference: detailed findings
+
+Everything below was verified in Vaudeville 2.0.1 (Unity 6000.3.20f1, Windows) with NVDA. The mod's source shows
+a working implementation of each point.
 
 ## 1. Vsync can make the game nearly unusable with a screen reader
 
@@ -122,7 +143,8 @@ selection, which is a good base. Problems found so far:
 - **Image-only buttons.** Return, Open Notebook and Silence in conversations, and Steam Subscribe in the Story
   Vault, have no text. Their nodes need labels.
 
-## 5. To be continued
+## Contact
 
-These notes grow as the mod covers more of the game: the Studio hub, conversations, the accusation, and the
-Workshop.
+Open an issue at https://github.com/ObjectInSpace/vaudeville-access/issues.
+
+The mod's source is MIT licensed: borrow anything that helps.

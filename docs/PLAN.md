@@ -252,8 +252,6 @@ Lower priority, and a separate decision.
   sees, and `tools/Watch-UiaEvents.ps1` shows what Unity sends and when.
 - **Background versus focused tests.** Background tests (frame rate, tree dumps, outside invoke) run without the
   tester. Tests that need the game in front say so first, list the exact keys, and wait for the tester.
-- **Known tester setting.** The tester's NVDA navigator does not follow focus, so navigator commands need
-  NVDA+Numpad Minus first.
 - **Deploy check.** Every build logs its hash, and the deployed file is compared against the build before testing.
 
 ## Open questions and risks
