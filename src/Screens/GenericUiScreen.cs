@@ -106,6 +106,9 @@ namespace VaudevilleAccess.Screens
             // Clickable 3D objects with no uGUI control: how to activate them, and the game's id for them.
             public Action? Activate;
             public int WorldId = -1;
+            // Identity across scans: the object, unless several items share one (transcript exchanges).
+            public int? KeyOverride;
+            public int Key => KeyOverride ?? Go.GetInstanceID();
         }
 
         private void Scan()
@@ -125,7 +128,7 @@ namespace VaudevilleAccess.Screens
             var focused = _host.Focused;
             foreach (var c in candidates)
             {
-                if (!_byObject.TryGetValue(c.Go.GetInstanceID(), out var entry)) continue;
+                if (!_byObject.TryGetValue(c.Key, out var entry)) continue;
                 bool isFocused = focused != null && focused.Pointer == entry.Node.Pointer;
                 if (c.Label != entry.Label)
                 {
@@ -237,6 +240,8 @@ namespace VaudevilleAccess.Screens
                 });
             }
 
+            AddTranscript(list, labelTexts);
+
             foreach (var text in UnityEngine.Object.FindObjectsByType<TMP_Text>(FindObjectsSortMode.None))
             {
                 if (text == null || !text.isActiveAndEnabled || labelTexts.Contains(text.GetInstanceID())) continue;
@@ -269,7 +274,7 @@ namespace VaudevilleAccess.Screens
         private static string Signature(List<Candidate> candidates)
         {
             var sb = new StringBuilder();
-            foreach (var c in candidates) sb.Append(c.Go.GetInstanceID()).Append('|');
+            foreach (var c in candidates) sb.Append(c.Key).Append('|');
             return sb.ToString();
         }
 
@@ -340,7 +345,7 @@ namespace VaudevilleAccess.Screens
                 });
             }
             entry.WorldId = c.WorldId;
-            _byObject[c.Go.GetInstanceID()] = entry;
+            _byObject[c.Key] = entry;
             _ordered.Add(entry);
             _byNode[entry.Node.Pointer] = entry;
         }
@@ -462,6 +467,50 @@ namespace VaudevilleAccess.Screens
             es.SetSelectedGameObject(target.Go);
             _host.Focus(target.Node);
             _log.Msg($"[GenericUi] Selection moved to hidden '{selected.name}'; redirected to '{target.Label}'.");
+        }
+
+        // The conversation transcript is one text (Chat.chatText) holding every exchange, separated by blank lines.
+        // As one node it is a single long block; split, each question and answer can be reviewed on its own, as a
+        // sighted player scrolls back. While the character is answering, the reply grows a few words at a time:
+        // updating then would rebuild the screen repeatedly and talk over the character's voice, so the items keep
+        // their last settled state until the character finishes.
+        private readonly List<string> _transcript = new();
+
+        private void AddTranscript(List<Candidate> list, HashSet<int> labelTexts)
+        {
+            var chat = UnityEngine.Object.FindFirstObjectByType<Il2Cpp.Chat>();
+            var text = chat != null ? chat.chatText : null;
+            if (text == null) { _transcript.Clear(); return; }
+            labelTexts.Add(text.GetInstanceID()); // replaced by the items below
+            if (!text.isActiveAndEnabled || !IsVisible(text.gameObject)) return;
+
+            if (!chat!.isSpeaking)
+            {
+                _transcript.Clear();
+                foreach (string paragraph in (text.text ?? "").Split("\n\n"))
+                {
+                    string s = Clean(paragraph);
+                    if (s.Length > 0) _transcript.Add(s);
+                }
+            }
+            if (_transcript.Count == 0) return;
+
+            var rt = text.GetComponent<RectTransform>();
+            Rect whole = rt != null ? Frames.Of(rt) : default;
+            float h = whole.height / _transcript.Count;
+            int baseKey = text.GetInstanceID() * 397;
+            for (int i = 0; i < _transcript.Count; i++)
+            {
+                list.Add(new Candidate
+                {
+                    Go = text.gameObject,
+                    Label = _transcript[i],
+                    Role = AccessibilityRole.StaticText,
+                    // Stacked slices of the text's area, so items keep their order and don't overlap.
+                    Frame = new Rect(whole.x, whole.y + i * h, whole.width, Math.Max(1f, h)),
+                    KeyOverride = baseKey + i,
+                });
+            }
         }
 
         // The accusation room keeps its own suspect selection (controllerSelectedCharacter) instead of uGUI selection.
