@@ -11,6 +11,8 @@ namespace VaudevilleAccess
     internal static class HotKeys
     {
         public const int VK_CONTROL = 0x11;
+        public const int VK_UP = 0x26;
+        public const int VK_DOWN = 0x28;
         public const int VK_F8 = 0x77;
         public const int VK_F9 = 0x78;
         public const int VK_F10 = 0x79;
@@ -28,6 +30,15 @@ namespace VaudevilleAccess
         {
             GetWindowThreadProcessId(GetForegroundWindow(), out uint pid);
             return pid == _pid;
+        }
+
+        /// <summary>True on the frame <paramref name="vk"/> goes down. Observes only; the game still gets the key.</summary>
+        public static bool Pressed(int vk)
+        {
+            bool down = (GetAsyncKeyState(vk) & 0x8000) != 0;
+            bool pressed = down && !_wasDown[vk];
+            _wasDown[vk] = down;
+            return pressed;
         }
 
         /// <summary>True on the frame <paramref name="vk"/> goes down while Ctrl is held.</summary>

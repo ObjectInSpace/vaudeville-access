@@ -37,6 +37,9 @@ namespace VaudevilleAccess.Native
         private AccessibilityNode? _focused;
         private AccessibilityNode? _lastRequested;
         private AccessibilityNode? _pendingFocus;
+        // The node the mod last asked to focus, ignoring one-frame detours.
+        private AccessibilityNode? _intended;
+        private int _focusEventsLogged;
         private bool _wasAppFocused;
         private float _nextHealthCheck;
 
@@ -57,8 +60,11 @@ namespace VaudevilleAccess.Native
 
         public A11yScreen? Published => _published;
 
-        /// <summary>The node the screen reader last reported focusing, or null.</summary>
-        public AccessibilityNode? Focused => _focused;
+        /// <summary>
+        /// The node the screen reader last reported focusing; failing that, the node the mod last asked it to focus.
+        /// The fallback matters while it is unproven that Unity's focusChanged reaches us for focus moves the mod makes.
+        /// </summary>
+        public AccessibilityNode? Focused => _focused ?? _intended;
 
         public A11yScreen NewScreen(string name) => new A11yScreen(this, name);
 
@@ -70,6 +76,7 @@ namespace VaudevilleAccess.Native
             SetServiceHierarchy(screen.Hierarchy);
             _published = screen;
             _focused = null;
+            _intended = focus;
             _lastRequested = focus;
             _pendingFocus = null;
             _log.Msg($"[A11yHost] Published '{screen.Name}' ({screen.Nodes.Count} nodes).");
@@ -84,6 +91,7 @@ namespace VaudevilleAccess.Native
             _log.Msg($"[A11yHost] Cleared '{_published.Name}'.");
             _published = null;
             _focused = null;
+            _intended = null;
             _lastRequested = null;
             _pendingFocus = null;
         }
@@ -92,6 +100,7 @@ namespace VaudevilleAccess.Native
         public void Focus(AccessibilityNode node)
         {
             if (!Available || _published == null) return;
+            _intended = node;
             if (_lastRequested != null && _lastRequested.Pointer == node.Pointer)
             {
                 SendLayoutChanged(Detour(node));
@@ -148,6 +157,9 @@ namespace VaudevilleAccess.Native
 
         internal void OnNodeFocusChanged(AccessibilityNode node, bool focused)
         {
+            // Evidence for whether Unity's focusChanged reaches us at all (unverified as of 2026-11-02).
+            if (_focusEventsLogged++ < 30)
+                _log.Msg($"[A11yHost] focusChanged: '{node.label}' focused={focused}");
             if (focused) _focused = node;
             else if (_focused != null && _focused.Pointer == node.Pointer) _focused = null;
         }

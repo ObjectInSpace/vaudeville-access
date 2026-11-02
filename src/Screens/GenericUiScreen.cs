@@ -67,6 +67,7 @@ namespace VaudevilleAccess.Screens
                     _nextScan = now + ScanInterval;
                     Scan();
                 }
+                if (HotKeys.GameHasFocus()) LeaveSingleLineFieldOnUpDown();
                 FollowGameSelection();
             }
             catch (Exception e)
@@ -93,6 +94,7 @@ namespace VaudevilleAccess.Screens
             public string Label = "";
             public AccessibilityRole Role;
             public Rect Frame;
+            public List<TMP_Text> ValueTexts = new();
         }
 
         private void Scan()
@@ -157,7 +159,10 @@ namespace VaudevilleAccess.Screens
 
                 var labelText = FindLabel(go, control);
                 if (labelText != null) labelTexts.Add(labelText.GetInstanceID());
-                string label = labelText != null ? Clean(labelText.text) : Humanize(go.name);
+                string label = labelText != null ? Clean(labelText.text) : FallbackLabel(go);
+
+                var valueTexts = SideValueTexts(go);
+                foreach (var t in valueTexts) labelTexts.Add(t.GetInstanceID());
 
                 var rt = go.GetComponent<RectTransform>();
                 list.Add(new Candidate
@@ -167,6 +172,7 @@ namespace VaudevilleAccess.Screens
                     Label = label,
                     Role = RoleOf(go),
                     Frame = rt != null ? Frames.Of(rt) : default,
+                    ValueTexts = valueTexts,
                 });
             }
 
@@ -220,7 +226,7 @@ namespace VaudevilleAccess.Screens
             foreach (var c in candidates)
             {
                 var entry = new Entry { Go = c.Go, Control = c.Control, Label = c.Label };
-                entry.ReadValue = ValueReader(c.Go);
+                entry.ReadValue = ValueReader(c.Go, c.ValueTexts);
                 entry.Value = entry.ReadValue?.Invoke() ?? "";
                 var state = StateOf(c.Go);
                 entry.Node = screen.Add(c.Label, c.Role, c.Frame, value: entry.Value.Length > 0 ? entry.Value : null, state: state);
@@ -320,14 +326,11 @@ namespace VaudevilleAccess.Screens
             return toggle != null && toggle.isOn ? AccessibilityState.Selected : AccessibilityState.None;
         }
 
-        private static Func<string>? ValueReader(GameObject go)
+        private static Func<string>? ValueReader(GameObject go, List<TMP_Text> valueTexts)
         {
+            // The typed text. The placeholder is the field's label (see FallbackLabel), as a sighted player reads it.
             var input = go.GetComponent<TMP_InputField>();
-            if (input != null)
-            {
-                string placeholder = input.placeholder != null ? input.placeholder.TryCast<TMP_Text>()?.text ?? "" : "";
-                return () => input.text.Length > 0 ? input.text : Clean(placeholder);
-            }
+            if (input != null) return () => input.text;
             var slider = go.GetComponent<Slider>();
             if (slider != null)
             {
@@ -338,7 +341,69 @@ namespace VaudevilleAccess.Screens
             }
             var dropdown = go.GetComponent<TMP_Dropdown>();
             if (dropdown != null) return () => dropdown.captionText != null ? Clean(dropdown.captionText.text) : "";
+            if (valueTexts.Count > 0)
+            {
+                return () =>
+                {
+                    var sb = new StringBuilder();
+                    foreach (var t in valueTexts)
+                    {
+                        string s = t != null ? Clean(t.text) : "";
+                        if (s.Length > 0) sb.Append(sb.Length > 0 ? " " : "").Append(s);
+                    }
+                    return sb.ToString();
+                };
+            }
             return null;
+        }
+
+        // A button alone in a layout row whose other texts show its current setting, such as Options' "SCREEN
+        // RESOLUTION" button with "1080p" beside it. Those texts are the button's value, so a change is announced.
+        private static List<TMP_Text> SideValueTexts(GameObject go)
+        {
+            var result = new List<TMP_Text>();
+            if (go.GetComponent<Button>() == null) return result;
+            var parent = go.transform.parent;
+            if (parent == null || parent.GetComponent<HorizontalLayoutGroup>() == null) return result;
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                var child = parent.GetChild(i);
+                if (child == go.transform) continue;
+                if (child.GetComponent<Selectable>() != null) return new List<TMP_Text>(); // a row of controls, not a setting
+                foreach (var text in child.GetComponentsInChildren<TMP_Text>())
+                    result.Add(text);
+            }
+            return result;
+        }
+
+        // Text-less controls: a text field is described by its placeholder; anything else by its object name.
+        private static string FallbackLabel(GameObject go)
+        {
+            var input = go.GetComponent<TMP_InputField>();
+            if (input != null && input.placeholder != null)
+            {
+                string placeholder = Clean(input.placeholder.TryCast<TMP_Text>()?.text);
+                if (placeholder.Length > 0) return placeholder;
+            }
+            return Humanize(go.name);
+        }
+
+        // In a single-line text field the arrows move the caret, so nothing leaves the field, and Escape leaves the
+        // whole conversation (the game's own binding). Up and Down have no use in one line of text: let them leave the
+        // field for the neighbouring control.
+        private void LeaveSingleLineFieldOnUpDown()
+        {
+            bool up = HotKeys.Pressed(HotKeys.VK_UP), down = HotKeys.Pressed(HotKeys.VK_DOWN);
+            if (!up && !down) return;
+            var es = EventSystem.current;
+            var selected = es?.currentSelectedGameObject;
+            var input = selected != null ? selected.GetComponent<TMP_InputField>() : null;
+            if (input == null || !input.isFocused || input.lineType != TMP_InputField.LineType.SingleLine) return;
+            var next = up ? input.FindSelectableOnUp() : input.FindSelectableOnDown();
+            if (next == null) return;
+            input.DeactivateInputField();
+            es!.SetSelectedGameObject(next.gameObject);
+            _log.Msg($"[GenericUi] Left text field with {(up ? "Up" : "Down")} for '{next.gameObject.name}'.");
         }
 
         // The control's own text, else (sliders, fields) the first text among its parent's children.
