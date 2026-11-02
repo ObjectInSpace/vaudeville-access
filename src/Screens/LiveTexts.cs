@@ -28,13 +28,19 @@ namespace VaudevilleAccess.Screens
 
         public LiveTexts(MelonLogger.Instance log) => _log = log;
 
-        public void OnSceneChanged() => _lastSpoken.Clear();
+        private readonly HashSet<IntPtr> _seen = new();
+
+        // Sources are keyed by object, and a new scene brings new objects, so nothing is cleared on scene change:
+        // clearing re-announced texts that appeared while the scene was still loading (heard twice at the Morgue).
+        // Sources not seen in a scan are forgotten instead.
+        public void OnSceneChanged() { }
 
         public void Tick()
         {
             float now = Time.realtimeSinceStartup;
             if (now < _nextScan) return;
             _nextScan = now + ScanInterval;
+            _seen.Clear();
             try
             {
                 foreach (var init in UnityEngine.Object.FindObjectsByType<OffWorldInit>(FindObjectsSortMode.None))
@@ -59,6 +65,10 @@ namespace VaudevilleAccess.Screens
                 if (!studio)
                     foreach (var location in UnityEngine.Object.FindObjectsByType<LocationLabel>(FindObjectsSortMode.None))
                         Watch(location.Pointer, location.isActiveAndEnabled, Text(location.label));
+
+                var gone = new List<IntPtr>();
+                foreach (var key in _lastSpoken.Keys) if (!_seen.Contains(key)) gone.Add(key);
+                foreach (var key in gone) _lastSpoken.Remove(key);
             }
             catch (Exception e)
             {
@@ -69,6 +79,7 @@ namespace VaudevilleAccess.Screens
 
         private void Watch(IntPtr source, bool visible, string text)
         {
+            _seen.Add(source);
             string current = visible ? text : "";
             _lastSpoken.TryGetValue(source, out var last);
             if (current == (last ?? "")) return;
