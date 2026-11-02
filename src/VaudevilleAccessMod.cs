@@ -21,6 +21,8 @@ namespace VaudevilleAccess
         private FrameStats? _frameStats;
         private PerfExperiment? _perf;
         private FrameRateUnlock? _frameRate;
+        private AnnouncementTest? _announceTest;
+        private FocusTest? _focusTest;
         private readonly Diagnostics.DumpScheduler _dumps = new();
 
         public override void OnInitializeMelon()
@@ -38,6 +40,10 @@ namespace VaudevilleAccess
             _frameStats = new FrameStats(LoggerInstance);
             if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.perftest")))
                 _perf = new PerfExperiment(LoggerInstance);
+            if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.announcetest")))
+                _announceTest = new AnnouncementTest(LoggerInstance);
+            if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.focustest")))
+                _focusTest = new FocusTest(LoggerInstance, _host);
             LoggerInstance.Msg("Native accessibility probe ready. Ctrl+F9 build, Ctrl+F10 next node, "
                              + "Ctrl+F11 change text field value, Ctrl+F12 tear down.");
         }
@@ -53,6 +59,7 @@ namespace VaudevilleAccess
             LoggerInstance.Msg($"Scene initialized: {buildIndex} '{sceneName}'.");
             _dumps.OnSceneInitialized(sceneName);
             _perf?.Start();
+            _announceTest?.Start();
             if (!_autoBuildPending) return;
             _autoBuildPending = false;
             LoggerInstance.Msg("Auto-build requested by environment.");
@@ -66,6 +73,8 @@ namespace VaudevilleAccess
             _probe?.Tick();
             _frameStats?.Tick();
             _perf?.Tick();
+            _announceTest?.Tick();
+            _focusTest?.Tick();
             _dumps.Tick();
             if (!HotKeys.GameHasFocus()) return;
 
