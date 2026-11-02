@@ -27,8 +27,12 @@ namespace VaudevilleAccess.Diagnostics
     {
         private static readonly string Dir = Path.Combine(MelonEnvironment.UserDataDirectory, "VaudevilleAccess", "dumps");
 
+        /// <summary>Off for players; developer mode turns it on. Screen rebuilds call Write either way.</summary>
+        public static bool Enabled { get; set; }
+
         public static string? Write(string reason)
         {
+            if (!Enabled) return null;
             try
             {
                 var sb = new StringBuilder();

@@ -4,110 +4,68 @@ using System.Security.Cryptography;
 using MelonLoader;
 using VaudevilleAccess.Native;
 
-[assembly: MelonInfo(typeof(VaudevilleAccess.VaudevilleAccessMod), "Vaudeville Access", "0.0.1", "objectinspace")]
+[assembly: MelonInfo(typeof(VaudevilleAccess.VaudevilleAccessMod), "Vaudeville Access", "0.1.0", "objectinspace")]
 [assembly: MelonGame("Bumblebee Studios", "Vaudeville")]
 
 namespace VaudevilleAccess
 {
     /// <summary>
     /// Mod entry point. <see cref="A11yHost"/> publishes Unity 6.3's native accessibility hierarchy, hand-assembled
-    /// because the game build stripped the public API. Screen adapters (Phase 2 on) describe the game's screens through
-    /// it; for now <see cref="NativeA11yProbe"/> is the test screen. See docs/PLAN.md.
+    /// because the game build stripped the public API. <see cref="Screens.GenericUiScreen"/> describes whatever uGUI
+    /// screen is showing through it, and <see cref="Screens.LiveTexts"/> announces texts that change in place.
+    /// Developer tooling lives in <see cref="Dev.DevTools"/>, off unless DeveloperMode is set. See docs/PLAN.md.
     /// </summary>
     public sealed class VaudevilleAccessMod : MelonMod
     {
         private A11yHost? _host;
-        private NativeA11yProbe? _probe;
-        private FrameStats? _frameStats;
-        private PerfExperiment? _perf;
         private FrameRateUnlock? _frameRate;
-        private AnnouncementTest? _announceTest;
-        private FocusTest? _focusTest;
-        private readonly Diagnostics.DumpScheduler _dumps = new();
         private Screens.GenericUiScreen? _generic;
         private Screens.LiveTexts? _liveTexts;
+        private Dev.DevTools? _dev;
 
         public override void OnInitializeMelon()
         {
             LogBuildStamp();
-            _frameRate = new FrameRateUnlock(LoggerInstance, MelonPreferences.CreateCategory("VaudevilleAccess"));
+            var prefs = MelonPreferences.CreateCategory("VaudevilleAccess");
+            var developerMode = prefs.CreateEntry("DeveloperMode", false,
+                description: "Developer tooling: UI dumps to UserData\\VaudevilleAccess\\dumps, a frame-rate log, and the "
+                           + "test probe keys (Ctrl+F8 to F12). Not needed to play.");
+            _frameRate = new FrameRateUnlock(LoggerInstance, prefs);
+
             _host = new A11yHost(LoggerInstance);
             if (!_host.Available)
             {
                 // Silence is the failure a blind player cannot diagnose: make it audible.
-                NativeA11yProbe.Beep(false);
-                NativeA11yProbe.Beep(false);
+                Beeper.Signal(false);
+                Beeper.Signal(false);
             }
-            _probe = new NativeA11yProbe(LoggerInstance, _host);
-            _generic = new Screens.GenericUiScreen(LoggerInstance, _host);
-            if (_host.Available) _liveTexts = new Screens.LiveTexts(LoggerInstance);
-            _frameStats = new FrameStats(LoggerInstance);
-            if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.perftest")))
-                _perf = new PerfExperiment(LoggerInstance);
-            if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.announcetest")))
-                _announceTest = new AnnouncementTest(LoggerInstance);
-            if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.focustest")))
-                _focusTest = new FocusTest(LoggerInstance, _host);
-            LoggerInstance.Msg("Native accessibility probe ready. Ctrl+F9 build, Ctrl+F10 next node, "
-                             + "Ctrl+F11 change text field value, Ctrl+F12 tear down.");
-        }
+            else
+            {
+                _generic = new Screens.GenericUiScreen(LoggerInstance, _host);
+                _liveTexts = new Screens.LiveTexts(LoggerInstance);
+            }
 
-        // Developer self-test: the file UserData\VaudevilleAccess.autobuild builds the probe once the first scene is
-        // up, so it can be checked from outside (UI Automation) without sending keystrokes to the game. A file, not an
-        // environment variable, because the game must be launched through Steam, which does not pass one on.
-        private bool _autoBuildPending = File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory,
-                                                                  "VaudevilleAccess.autobuild"));
+            if (developerMode.Value) _dev = new Dev.DevTools(LoggerInstance, _host, _generic);
+        }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
             LoggerInstance.Msg($"Scene initialized: {buildIndex} '{sceneName}'.");
-            _dumps.OnSceneInitialized(sceneName);
             _generic?.OnSceneChanged();
             _liveTexts?.OnSceneChanged();
-            _perf?.Start();
-            _announceTest?.Start();
-            if (!_autoBuildPending) return;
-            _autoBuildPending = false;
-            LoggerInstance.Msg("Auto-build requested by environment.");
-            BuildProbe();
+            _dev?.OnSceneInitialized(sceneName);
         }
 
         public override void OnUpdate()
         {
             _frameRate?.Tick();
             _host?.Tick();
-            _probe?.Tick();
             _generic?.Tick();
             _liveTexts?.Tick();
-            _frameStats?.Tick();
-            _perf?.Tick();
-            _announceTest?.Tick();
-            _focusTest?.Tick();
-            _dumps.Tick();
-            if (!HotKeys.GameHasFocus()) return;
-
-            if (HotKeys.CtrlPressed(HotKeys.VK_F8)) Diagnostics.UiDump.Write("manual");
-
-            if (HotKeys.CtrlPressed(HotKeys.VK_F9)) BuildProbe();
-            if (HotKeys.CtrlPressed(HotKeys.VK_F10)) _probe?.FocusNext();
-            if (HotKeys.CtrlPressed(HotKeys.VK_F11)) _probe?.ChangeTextValue();
-            if (HotKeys.CtrlPressed(HotKeys.VK_F12)) TearDownProbe();
+            _dev?.Tick();
         }
 
-        public override void OnApplicationQuit() => _probe?.TearDown();
-
-        // The probe and the generic screen would fight over the one active hierarchy.
-        private void BuildProbe()
-        {
-            _generic?.SetEnabled(false);
-            _probe?.Build();
-        }
-
-        private void TearDownProbe()
-        {
-            _probe?.TearDown();
-            _generic?.SetEnabled(true);
-        }
+        public override void OnApplicationQuit() => _dev?.OnQuit();
 
         // Hash of the DLL that actually loaded, so a log can always be matched to the build that produced it.
         private void LogBuildStamp()

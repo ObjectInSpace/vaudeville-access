@@ -7,6 +7,28 @@ learned so far, so that work can start from evidence rather than from scratch.
 Everything here was verified in Vaudeville 2.0.1 (Unity 6000.3.20f1, Windows) with NVDA. The mod's source shows a
 working implementation of each point.
 
+## Suggested implementation outline
+
+What the mod does, which the game could do directly with the public API (no workarounds needed in-game):
+
+1. **One accessibility hierarchy per screen.** Build it from the visible uGUI controls and texts, publish it
+   with `AssistiveSupport.activeHierarchy`, and rebuild it when a panel opens or closes. Text controls take
+   their label from their own text; sliders and fields from the text beside them. See
+   `src/Screens/GenericUiScreen.cs`.
+2. **Follow the existing uGUI selection.** Most menus already navigate with the keyboard through
+   `EventSystem` selection. Move screen reader focus (`SendLayoutChanged(node)`) when the selection changes,
+   and move the selection when the screen reader moves focus.
+3. **Announce what changes in place:** loading status, unlock popups, messages, the character and location on
+   arrival, and slider or setting values when they change. See `src/Screens/LiveTexts.cs`.
+4. **Caret review in text fields**, since the TextField node can't provide it. See
+   `src/Screens/TextFieldReview.cs`.
+5. **Nodes for the 3D objects that are clicked with the mouse:** map post-its (already uGUI Selectables) and
+   the accusation suspects (not yet). Activation calls the existing `activatePrimary`.
+6. **Turn vsync off while a screen reader is running** (section 1).
+
+The mod's `src/Native/` folder exists only because the build stripped the public API. Inside the game none of
+it is needed.
+
 ## 1. Vsync can make the game nearly unusable with a screen reader
 
 Unity answers screen reader (UI Automation) requests once per frame, on the main thread. Vaudeville runs with

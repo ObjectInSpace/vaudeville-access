@@ -3,8 +3,9 @@
 A screen reader accessibility mod for [Vaudeville](https://store.steampowered.com/app/2240920/Vaudeville/)
 (Bumblebee Studios), built on Unity 6.3's own screen reader support.
 
-Status: early development. Phase 0 (proof that the native accessibility hierarchy works in this game) is done.
-See [docs/PLAN.md](docs/PLAN.md) for the plan.
+Status: version 0.1.0, early release. Menus, the Studio, conversations, the notebook and the accusation work
+with NVDA. Players: see [docs/PLAYER-README.md](docs/PLAYER-README.md). The game's developers: see
+[docs/DEVELOPER-NOTES.md](docs/DEVELOPER-NOTES.md). The plan and progress: [docs/PLAN.md](docs/PLAN.md).
 
 ## How it works
 
@@ -40,6 +41,13 @@ The build copies `VaudevilleAccess.dll` into the game's `Mods` folder. Override 
 In `UserData\MelonPreferences.cfg`, category `VaudevilleAccess`:
 
 - `DisableVsync` (default true): turn vsync off.
+- `DeveloperMode` (default false): UI dumps to `UserData\VaudevilleAccess\dumps`, a frame-rate log, and the
+  test probe keys (Ctrl+F8 to F12). See `src/Dev/DevTools.cs`.
+
+## Releasing
+
+`pwsh -File tools\Make-Release.ps1` builds `artifacts\VaudevilleAccess-<version>.zip`: MelonLoader 0.7.3
+(x64), the mod, a `Loader.cfg` that hides MelonLoader's console, and the player readme.
 
 ## Developer tools
 

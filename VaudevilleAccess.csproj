@@ -46,7 +46,7 @@
   </ItemGroup>
 
   <!-- Deploy into the game's Mods folder after every build, so the game never runs a stale copy. -->
-  <Target Name="DeployToGameMods" AfterTargets="Build" Condition="Exists('$(GameDir)\MelonLoader')">
+  <Target Name="DeployToGameMods" AfterTargets="Build" Condition="Exists('$(GameDir)\MelonLoader') And '$(SkipDeploy)' != 'true'">
     <MakeDir Directories="$(GameDir)\Mods" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\Mods" OverwriteReadOnlyFiles="true" />
     <Message Importance="high" Text="Deployed $(TargetFileName) -&gt; $(GameDir)\Mods" />

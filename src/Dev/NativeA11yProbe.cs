@@ -56,7 +56,7 @@ namespace VaudevilleAccess.Native
                 _screen = screen;
                 _host.Publish(screen, _button);
             })) { Fail(); return; }
-            Beep(true);
+            Beeper.Signal(true);
         }
 
         public void FocusNext()
@@ -64,7 +64,7 @@ namespace VaudevilleAccess.Native
             if (_screen == null) { Msg("Nothing built. Ctrl+F9 first."); return; }
             _focusIndex = (_focusIndex + 1) % _nodes.Count;
             var node = _nodes[_focusIndex];
-            if (Step($"move focus to node {node.id} '{node.label}'", () => _host.Focus(node))) Beep(true);
+            if (Step($"move focus to node {node.id} '{node.label}'", () => _host.Focus(node))) Beeper.Signal(true);
             else Fail();
         }
 
@@ -73,7 +73,7 @@ namespace VaudevilleAccess.Native
             if (_textField == null) { Msg("Nothing built. Ctrl+F9 first."); return; }
             string[] values = { "Who saw you leave the theatre?", "Did you know the victim?", "Where were you last night?" };
             string next = values[_textEdits++ % values.Length];
-            if (Step($"set text field value to '{next}'", () => _host.SetValue(_textField, next))) Beep(true);
+            if (Step($"set text field value to '{next}'", () => _host.SetValue(_textField, next))) Beeper.Signal(true);
             else Fail();
         }
 
@@ -94,7 +94,7 @@ namespace VaudevilleAccess.Native
             _pressCount += presses;
             Step("relabel button after activation", () =>
                 _host.SetLabel(_button, $"Vaudeville Access test button, pressed {_pressCount} times"));
-            Beep(true);
+            Beeper.Signal(true);
         }
 
         private bool OnButtonInvoked()
@@ -122,19 +122,9 @@ namespace VaudevilleAccess.Native
         private void Fail()
         {
             Msg("Stopped at the failed step above.");
-            Beep(false);
+            Beeper.Signal(false);
         }
 
         private void Msg(string text) => _log.Msg($"[NativeProbe] {text}");
-
-        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
-        private static extern bool Beep(uint frequency, uint durationMs);
-
-        // Off the main thread: kernel32 Beep blocks for its duration.
-        internal static void Beep(bool success) => Task.Run(() =>
-        {
-            if (success) { Beep(660, 90); Beep(990, 120); }
-            else Beep(220, 450);
-        });
     }
 }
