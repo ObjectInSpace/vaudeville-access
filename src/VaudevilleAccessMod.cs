@@ -24,6 +24,7 @@ namespace VaudevilleAccess
         private AnnouncementTest? _announceTest;
         private FocusTest? _focusTest;
         private readonly Diagnostics.DumpScheduler _dumps = new();
+        private Screens.GenericUiScreen? _generic;
 
         public override void OnInitializeMelon()
         {
@@ -37,6 +38,7 @@ namespace VaudevilleAccess
                 NativeA11yProbe.Beep(false);
             }
             _probe = new NativeA11yProbe(LoggerInstance, _host);
+            _generic = new Screens.GenericUiScreen(LoggerInstance, _host);
             _frameStats = new FrameStats(LoggerInstance);
             if (File.Exists(Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "VaudevilleAccess.perftest")))
                 _perf = new PerfExperiment(LoggerInstance);
@@ -58,12 +60,13 @@ namespace VaudevilleAccess
         {
             LoggerInstance.Msg($"Scene initialized: {buildIndex} '{sceneName}'.");
             _dumps.OnSceneInitialized(sceneName);
+            _generic?.OnSceneChanged();
             _perf?.Start();
             _announceTest?.Start();
             if (!_autoBuildPending) return;
             _autoBuildPending = false;
             LoggerInstance.Msg("Auto-build requested by environment.");
-            _probe?.Build();
+            BuildProbe();
         }
 
         public override void OnUpdate()
@@ -71,6 +74,7 @@ namespace VaudevilleAccess
             _frameRate?.Tick();
             _host?.Tick();
             _probe?.Tick();
+            _generic?.Tick();
             _frameStats?.Tick();
             _perf?.Tick();
             _announceTest?.Tick();
@@ -80,13 +84,26 @@ namespace VaudevilleAccess
 
             if (HotKeys.CtrlPressed(HotKeys.VK_F8)) Diagnostics.UiDump.Write("manual");
 
-            if (HotKeys.CtrlPressed(HotKeys.VK_F9)) _probe?.Build();
+            if (HotKeys.CtrlPressed(HotKeys.VK_F9)) BuildProbe();
             if (HotKeys.CtrlPressed(HotKeys.VK_F10)) _probe?.FocusNext();
             if (HotKeys.CtrlPressed(HotKeys.VK_F11)) _probe?.ChangeTextValue();
-            if (HotKeys.CtrlPressed(HotKeys.VK_F12)) _probe?.TearDown();
+            if (HotKeys.CtrlPressed(HotKeys.VK_F12)) TearDownProbe();
         }
 
         public override void OnApplicationQuit() => _probe?.TearDown();
+
+        // The probe and the generic screen would fight over the one active hierarchy.
+        private void BuildProbe()
+        {
+            _generic?.SetEnabled(false);
+            _probe?.Build();
+        }
+
+        private void TearDownProbe()
+        {
+            _probe?.TearDown();
+            _generic?.SetEnabled(true);
+        }
 
         // Hash of the DLL that actually loaded, so a log can always be matched to the build that produced it.
         private void LogBuildStamp()
